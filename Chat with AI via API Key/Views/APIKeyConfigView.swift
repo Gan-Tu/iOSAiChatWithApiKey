@@ -20,10 +20,10 @@ struct APIKeyConfigView: View {
         NavigationView {
             Form {
                 Section(header: Text("Enter API Keys")) {
-                    TextField("OpenAI API Key", text: $openaiKey)
+                    TextField("xAI API Key", text: $xaiKey)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
-                    TextField("xAI API Key", text: $xaiKey)
+                    TextField("OpenAI API Key", text: $openaiKey)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     TextField("Gemini API Key", text: $geminiKey)

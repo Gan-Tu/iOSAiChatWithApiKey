@@ -10,41 +10,122 @@ import SwiftUI
 struct InputAreaView: View {
     @Binding var inputText: String
     let onSend: () -> Void
-    let isLoading: Bool // To disable the send button
-
+    let isLoading: Bool
+    let onExpand: () -> Void
+    
     // Determine if the send button should be active
     private var isSendButtonDisabled: Bool {
         inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading
     }
-
+    
+    
     var body: some View {
-        HStack {
-            TextField("Hello", text: $inputText, axis: .vertical) // Use vertical axis for multiline
-                .textFieldStyle(.roundedBorder)
-                .padding(.vertical, 8)
-                .disabled(isLoading) // Disable text field while loading
-
-            Button(action: onSend) {
-                Image(systemName: "arrow.up.circle.fill")
-                    .resizable()
-                    .frame(width: 30, height: 30)
-                    .foregroundColor(isSendButtonDisabled ? .gray : .blue)
+        VStack(spacing: 0) {
+            // Input area with buttons
+            HStack(alignment: .bottom, spacing: 8) {
+                // Text input area
+                ZStack(alignment: .leading) {
+                    // Placeholder text
+                    if inputText.isEmpty {
+                        Text("This")
+                            .foregroundColor(Color.gray.opacity(0.7))
+                            .padding(.leading, 4)
+                            .padding(.top, 8)
+                            .allowsHitTesting(false) // Ensure this doesn't block TextEditor interaction
+                    }
+                    
+                    // Actual text editor - fully editable
+                    TextEditor(text: $inputText)
+                        .frame(minHeight: 36, maxHeight: 100)
+                        .disabled(isLoading) // Only disable when loading
+                        .background(Color.white)
+                        .cornerRadius(8)
+                        .padding(.horizontal, 2)
+                }
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                )
+                .frame(minHeight: 36)
+                
+                // Expand button (positioned absolutely)
+                VStack {
+                    Button(action: onExpand) {
+                        Image(systemName: "arrow.up.backward.and.arrow.down.forward")
+                            .resizable()
+                            .frame(width: 18, height: 18)
+                            .foregroundColor(.gray)
+                            .rotationEffect(.degrees(90))
+                    }
+                    .padding(.top, 10)
+                    
+                    Spacer()
+                    
+                    // Send button
+                    Button(action: onSend) {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .resizable()
+                            .frame(width: 28, height: 28)
+                            .foregroundColor(isSendButtonDisabled ? Color.gray.opacity(0.5) : Color.blue)
+                    }
+                    .disabled(isSendButtonDisabled)
+                    .padding(.bottom, 4)
+                }
+                .frame(maxHeight: 100)
             }
-            .disabled(isSendButtonDisabled)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color(UIColor.systemBackground))
         }
-        .padding(.horizontal)
-        .padding(.bottom, UIApplication.shared.windows.first?.safeAreaInsets.bottom ?? 0) // Pad for software keyboard/safe area
-        .background(Color(UIColor.systemGray6).ignoresSafeArea(.all, edges: .bottom))
+        .background(Color(UIColor.systemGray6))
     }
 }
 
 struct InputAreaView_Previews: PreviewProvider {
     static var previews: some View {
-        InputAreaView(inputText: .constant(""), onSend: {}, isLoading: false)
+        VStack {
+            Spacer()
+            InputAreaView(
+                inputText: .constant("Short"),
+                onSend: {},
+                isLoading: false,
+                onExpand: {}
+            )
             .previewLayout(.sizeThatFits)
-        InputAreaView(inputText: .constant("Typing something..."), onSend: {}, isLoading: false)
+            
+            InputAreaView(
+                inputText: .constant("This is a slightly longer message that might take up more than one line."),
+                onSend: {},
+                isLoading: false,
+                onExpand: {}
+            )
             .previewLayout(.sizeThatFits)
-        InputAreaView(inputText: .constant("Loading..."), onSend: {}, isLoading: true)
+            
+            let longText = String(repeating: "A", count: 60) + " Long text to trigger expand button visibility."
+            InputAreaView(
+                inputText: .constant(longText),
+                onSend: {},
+                isLoading: false,
+                onExpand: {}
+            )
             .previewLayout(.sizeThatFits)
+            
+            InputAreaView(
+                inputText: .constant("Line 1\nLine 2\nLine 3\nLine 4"),
+                onSend: {},
+                isLoading: false,
+                onExpand: {}
+            )
+            .previewLayout(.sizeThatFits)
+            
+            InputAreaView(
+                inputText: .constant("Loading..."),
+                onSend: {},
+                isLoading: true,
+                onExpand: {}
+            )
+            .previewLayout(.sizeThatFits)
+        }
+        .background(Color.yellow.opacity(0.3).ignoresSafeArea()) // Visualize padding
     }
 }

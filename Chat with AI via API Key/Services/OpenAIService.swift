@@ -4,7 +4,6 @@
 //
 //  Created by Gan Tu on 5/7/25.
 //
-
 import Foundation
 
 class OpenAIService: NSObject, AIProviderService, URLSessionDataDelegate {
@@ -28,7 +27,7 @@ class OpenAIService: NSObject, AIProviderService, URLSessionDataDelegate {
             return nil
         }
 
-        // Construct the OpenAI messages format (simplified, ignoring tool_calls etc.)
+        // Construct the OpenAI messages format (simplified)
         let openAIMessages = messages.map { msg in
             return [
                 "role": msg.role == .user ? "user" : "assistant",
@@ -47,12 +46,18 @@ class OpenAIService: NSObject, AIProviderService, URLSessionDataDelegate {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
-        let requestBody: [String: Any] = [
+        var requestBody: [String: Any] = [
             "model": model.modelName,
             "messages": openAIMessages,
             "stream": true
-            // Add instructions, temperature, etc. if needed from model config
+            // Add temperature, etc. if needed from model config
         ]
+
+        // FIX 6: Add reasoning parameter for o4-mini if specified in model config
+        if let effort = model.openAIReasoningEffort {
+             requestBody["reasoning"] = ["effort": effort]
+        }
+
 
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: requestBody, options: [])
@@ -64,24 +69,22 @@ class OpenAIService: NSObject, AIProviderService, URLSessionDataDelegate {
         self.onToken = onToken
         self.onComplete = onComplete
 
-        // Need a session with a delegate to handle streaming data chunks
         let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
         self.session = session // Keep a reference
         self.dataTask = session.dataTask(with: request)
 
         self.openAIEventParser = OpenAIEventParser(
             onToken: { [weak self] token in
-                 // Ensure token delivery happens on the main thread
-                DispatchQueue.main.async {
-                    self?.onToken?(token)
-                }
+                 DispatchQueue.main.async {
+                     self?.onToken?(token)
+                 }
             },
             onComplete: { [weak self] error in
-                 // Completion will be handled by URLSession data task completion handler
-                 // This internal parser complete is just a signal
+                 // Parser completion is less critical than task completion
+                 // print("OpenAI Parser Complete") // Debugging
             },
              onError: { [weak self] errorMessage in
-                 // Report parsing error back to the main completion handler
+                 print("OpenAI Parsing Error: \(errorMessage)") // Debugging
                  self?.onComplete?(.failure(.streamingError("OpenAI parsing error: \(errorMessage)")))
              }
         )
@@ -92,10 +95,9 @@ class OpenAIService: NSObject, AIProviderService, URLSessionDataDelegate {
         return dataTask
     }
 
-    // MARK: - URLSessionDataDelegate Methods
+    // MARK: - URLSessionDataDelegate Methods (No changes needed here from previous version)
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        // OpenAI sends data in 'data: {...}\n\n' format, often multiple events in one chunk
         openAIEventParser?.parse(data: data)
     }
 
@@ -106,15 +108,13 @@ class OpenAIService: NSObject, AIProviderService, URLSessionDataDelegate {
             if let error = error as? URLError, error.code == .cancelled {
                 self.onComplete?(.failure(.cancelled))
             } else if let httpResponse = task.response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
-                 // Attempt to read error from response body if available
-                 // Note: This is tricky with streaming. The first non-2xx response might stop the stream.
-                 // We might need to buffer the initial response if it's an error.
-                 // For simplicity here, we'll just report a generic API error if status is bad.
-                 // A more robust implementation would try to parse the error body.
+                 print("OpenAI API Error Status: \(httpResponse.statusCode)") // Debugging
                  self.onComplete?(.failure(.apiError("API returned status code \(httpResponse.statusCode)", httpResponse.statusCode)))
             } else if let error = error {
+                print("OpenAI Network/Task Error: \(error.localizedDescription)") // Debugging
                 self.onComplete?(.failure(.networkError(error)))
             } else {
+                // print("OpenAI Task Completed Successfully") // Debugging
                 self.onComplete?(.success(())) // Success
             }
 
@@ -127,12 +127,9 @@ class OpenAIService: NSObject, AIProviderService, URLSessionDataDelegate {
         }
     }
 
-    // Required by protocol, but not used for streaming delegate approach
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
-        // Check for non-2xx status early if possible
          if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
-             // Allow receiving data, but parse it as an error response instead of streaming events
-             completionHandler(.allow) // Or cancel immediately? Depends on API specifics. Let's allow for now.
+             completionHandler(.allow)
          } else {
             completionHandler(.allow)
          }

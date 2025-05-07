@@ -7,13 +7,38 @@
 
 import Foundation
 
-class XAIService: NSObject, AIProviderService, URLSessionDataDelegate {
+// Re-using struct definitions from previous fix that work with raw data payload
+struct XAICompletionChunkData: Decodable {
+    let id: String
+    let object: String // Should be "chat.completion.chunk"
+    let created: Int
+    let model: String
+    let choices: [Choice] // Array of Choice objects
 
+    struct Choice: Decodable {
+        let index: Int
+        let delta: Delta? // Delta object is optional (e.g., in the final chunk with finish_reason)
+        let finish_reason: String? // Optional, as it's only present on the final chunk
+
+        enum CodingKeys: String, CodingKey {
+            case index
+            case delta
+            case finish_reason
+        }
+    }
+
+    struct Delta: Decodable {
+        let content: String?
+        let role: String?
+    }
+}
+
+class XAIService: NSObject, AIProviderService, URLSessionDataDelegate {
     private var dataTask: URLSessionDataTask?
     private var onToken: ((String) -> Void)?
     private var onComplete: ((Result<Void, AIProviderServiceError>) -> Void)?
     private var sseParser: SSEParser?
-    private var session: URLSession?
+     private var session: URLSession?
 
     func streamChatCompletion(
         model: ModelConfig,
@@ -53,9 +78,11 @@ class XAIService: NSObject, AIProviderService, URLSessionDataDelegate {
             "temperature": 0.0 // Example, can be configurable
         ]
 
-        if model.requiresReasoningEffort {
-            requestBody["reasoning_effort"] = "medium" // Or "large"
+        // FIX 6: Add reasoning parameter for xAI mini if specified
+        if let effort = model.xAIReasoningEffort {
+            requestBody["reasoning_effort"] = effort
         }
+
 
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: requestBody, options: [])
@@ -76,47 +103,37 @@ class XAIService: NSObject, AIProviderService, URLSessionDataDelegate {
                  if let data = data {
                      if data == "[DONE]" {
                          // print("XAI received [DONE]")
-                         // The task completion handler will signal final completion
                      } else {
                           guard !data.isEmpty else {
                               // print("XAI received empty data field, ignoring.")
                               return
                           }
 
-                          // FIX: Decode the data directly into XAICompletionChunkData
                          if let jsonData = data.data(using: .utf8) {
                              do {
+                                 // Decode the data directly into XAICompletionChunkData
                                  let chunk = try JSONDecoder().decode(XAICompletionChunkData.self, from: jsonData)
 
                                  // Process the chunk - look for the delta content
                                  if let choice = chunk.choices.first, // Get the first choice
                                     let delta = choice.delta,      // Check if delta object exists
                                     let content = delta.content { // Check if content string exists inside delta
-                                      // We received a content delta!
                                        DispatchQueue.main.async {
                                            self?.onToken?(content) // Pass the extracted content (can be "")
                                        }
                                   } else {
-                                      // This chunk might not contain a text delta,
-                                      // e.g., it might be the final chunk with just finish_reason,
-                                      // or an initial chunk with just role. Ignore.
-                                      // print("XAI chunk has no usable text delta.") // Debugging
+                                      // Ignore chunks without the expected text delta content
+                                       // print("XAI chunk has no usable text delta.")
                                   }
 
-                                 // Note: You could also check for `choice.finish_reason` here
-                                 // if you needed to act specifically when the stream ends.
-
                              } catch {
-                                 // JSON decoding failed for the data content
-                                 print("Failed to parse xAI data JSON: \(data) - Error: \(error)") // Debugging
+                                 print("Failed to parse xAI data JSON: \(data) - Error: \(error)")
                                  DispatchQueue.main.async {
-                                      // Report the decoding error with the problematic data string
                                       self?.onComplete?(.failure(.streamingError("xAI JSON decoding error: \(error.localizedDescription) - Data: \(data)")))
                                  }
                              }
                          } else {
-                             // String to Data conversion failed
-                             print("Failed to create data from xAI data string: \(data)") // Debugging
+                             print("Failed to create data from xAI data string: \(data)")
                               DispatchQueue.main.async {
                                    self?.onComplete?(.failure(.streamingError("xAI data string invalid encoding: \(data)")))
                               }
@@ -125,8 +142,7 @@ class XAIService: NSObject, AIProviderService, URLSessionDataDelegate {
                  }
              },
             onComplete: { [weak self] in
-                 // print("XAI SSE Parser Complete") // This means the SSE stream syntax ended (double newline)
-                 // The actual task completion (success/failure) is handled in urlSession(_:task:didCompleteWithError:)
+                 // print("XAI SSE Parser Complete")
              }
         )
 
@@ -134,37 +150,6 @@ class XAIService: NSObject, AIProviderService, URLSessionDataDelegate {
 
         return dataTask
     }
-
-    // MARK: - Helper structs for xAI JSON chunk parsing
-    struct XAICompletionChunkData: Decodable {
-        let id: String
-        let object: String // Should be "chat.completion.chunk"
-        let created: Int
-        let model: String
-        let choices: [Choice] // Array of Choice objects
-
-        struct Choice: Decodable {
-            let index: Int
-            let delta: Delta? // Delta object is optional (e.g., in the final chunk with finish_reason)
-
-            // FIX: finish_reason is at the same level as index and delta, not inside delta
-            let finish_reason: String? // Optional, as it's only present on the final chunk
-
-            // Need a custom CodingKeys if Swift property names differ from JSON keys
-            enum CodingKeys: String, CodingKey {
-                case index
-                case delta
-                case finish_reason // Map finish_reason JSON key
-            }
-        }
-
-        struct Delta: Decodable {
-            // content and role are optional within delta
-            let content: String?
-            let role: String?
-        }
-    }
-
 
     // MARK: - URLSessionDataDelegate Methods (Same as OpenAI, using SSEParser)
 

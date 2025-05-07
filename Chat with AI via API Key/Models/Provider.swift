@@ -8,8 +8,8 @@
 import Foundation
 
 enum Provider: String, Identifiable, CaseIterable {
-    case openai
     case xai
+    case openai
     case gemini
 
     var id: String { self.rawValue }

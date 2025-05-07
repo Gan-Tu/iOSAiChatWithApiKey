@@ -12,5 +12,18 @@ struct ModelConfig: Identifiable, Equatable {
     let provider: Provider
     let modelName: String
     let displayName: String
-    let requiresReasoningEffort: Bool // Specific for xAI mini
+    let openAIReasoningEffort: String? // Specific for OpenAI models like o4-mini
+    let xAIReasoningEffort: String? // Specific for xAI mini
+
+    var requiresReasoningParameter: Bool {
+        openAIReasoningEffort != nil || xAIReasoningEffort != nil
+    }
+
+    init(provider: Provider, modelName: String, displayName: String, openAIReasoningEffort: String? = nil, xAIReasoningEffort: String? = nil) {
+        self.provider = provider
+        self.modelName = modelName
+        self.displayName = displayName
+        self.openAIReasoningEffort = openAIReasoningEffort
+        self.xAIReasoningEffort = xAIReasoningEffort
+    }
 }

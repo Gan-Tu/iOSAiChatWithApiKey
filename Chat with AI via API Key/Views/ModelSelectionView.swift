@@ -45,7 +45,7 @@ struct ModelSelectionView: View {
                         // Dismiss this model selection sheet
                         dismiss()
                     } label: {
-                        Label("Configure API Keys", systemImage: "key.horizontal") // Or "gearshape"
+                        Label("Configure API Keys", systemImage: "key.horizontal")
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
