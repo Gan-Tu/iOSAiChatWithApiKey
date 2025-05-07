@@ -37,6 +37,7 @@ class ChatViewModel: ObservableObject {
     ]
 
     private var currentStreamingTask: URLSessionDataTask?
+    private var currentAssistantMessageId: UUID? // To track the loading/streaming assistant message
 
     init() {
         self.selectedModel = availableModels.first!
@@ -76,22 +77,26 @@ class ChatViewModel: ObservableObject {
 
     func sendMessage() {
         guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        guard !isLoading else { return } // Prevent sending while another response is streaming
+        guard !isLoading else { return } // Prevents multiple simultaneous requests
 
         let userMessageContent = inputText
         messages.append(Message(role: .user, content: userMessageContent))
-        inputText = "" // Clear input immediately
-        isLoading = true // Indicate loading state
+        inputText = ""
+        isLoading = true // Set general loading state
 
-        // FIX 5: DO NOT add an empty assistant message placeholder here.
-        // The assistant message will be added when the *first* token arrives.
+        // Create and add the placeholder message
+        let placeholderId = UUID()
+        currentAssistantMessageId = placeholderId // Track this ID
+        let placeholderMessage = Message(id: placeholderId, role: .assistant, content: "", isStreaming: false, isLoadingPlaceholder: true)
+        messages.append(placeholderMessage)
+        print("DEBUG: Added placeholder with ID: \(placeholderId)")
+
 
         guard let apiKey = getAPIKey(for: selectedModel.provider), !apiKey.isEmpty else {
             handleCompletion(.failure(.apiKeyMissing))
             return
         }
 
-        // Select the appropriate service
         let service: AIProviderService
         switch selectedModel.provider {
         case .openai: service = OpenAIService()
@@ -99,29 +104,58 @@ class ChatViewModel: ObservableObject {
         case .gemini: service = GeminiService()
         }
 
-        // Keep track if the assistant message has been added for the current stream
-        // This is slightly complex state. An alternative is to always append tokens
-        // to the LAST message *if* it's an assistant message, otherwise create one.
-        // Let's use the latter approach for simplicity.
+        // Prepare messages for API (exclude any active placeholder from history sent to API)
+        let messagesForAPI = messages.filter { msg in
+            !(msg.id == currentAssistantMessageId && msg.isLoadingPlaceholder) && msg.role != .error
+        }
 
         currentStreamingTask = service.streamChatCompletion(
             model: selectedModel,
-            messages: messages.filter { $0.role != .error }, // Don't send error messages to API
+            messages: messagesForAPI,
             apiKey: apiKey,
             onToken: { [weak self] token in
                 DispatchQueue.main.async {
                     guard let self = self else { return }
-                    // FIX 5: Add assistant message ONLY if it doesn't exist as the last message
-                    if self.messages.last?.role != .assistant || !(self.messages.last?.isStreaming ?? false) {
-                         // Add a new assistant message if the last one wasn't the streaming one
-                         // (e.g., user sent another message quickly, or first token arrived)
-                         self.messages.append(Message(role: .assistant, content: token, isStreaming: true))
-                     } else {
-                         // Append token to the existing streaming assistant message
-                         if let index = self.messages.lastIndex(where: { $0.isStreaming }) {
-                            self.messages[index].content += token
-                         }
-                     }
+                    guard let assistantMsgId = self.currentAssistantMessageId,
+                          let index = self.messages.firstIndex(where: { $0.id == assistantMsgId }) else {
+                        print("DEBUG OnToken: No current assistant message found or ID mismatch. Current ID: \(String(describing: self.currentAssistantMessageId))")
+                        // Remove any existing loading placeholder to avoid duplication
+                        self.messages.removeAll { $0.isLoadingPlaceholder }
+                        // Fallback: if message is somehow lost, create a new one if token is not empty
+                        if !token.isEmpty {
+                            // Remove any lingering placeholder to avoid showing old loading messages
+                            self.messages.removeAll { $0.isLoadingPlaceholder }
+
+                            let newMessage = Message(role: .assistant, content: token, isStreaming: true)
+                            self.messages.append(newMessage)
+                            self.currentAssistantMessageId = newMessage.id // Start tracking new message
+                        }
+                        return
+                    }
+
+                    // We found the message at 'index'.
+                    var messageToUpdate = self.messages[index] // Get a copy
+
+                    if messageToUpdate.isLoadingPlaceholder {
+                        // This is the first token for this message
+                        print("DEBUG OnToken: First token for placeholder ID \(assistantMsgId). Token: '\(token)'. Clearing placeholder.")
+                        messageToUpdate.isLoadingPlaceholder = false
+                        messageToUpdate.isStreaming = true
+                        messageToUpdate.content = token // Set initial content
+                    } else if messageToUpdate.isStreaming {
+                        // Subsequent token
+                         print("DEBUG OnToken: Subsequent token for streaming ID \(assistantMsgId). Token: '\(token)'")
+                        messageToUpdate.content += token
+                    } else {
+                        // Message was found but isn't a placeholder and isn't streaming
+                        // This state shouldn't ideally occur if logic is correct
+                        print("DEBUG OnToken: Token for non-streaming/non-placeholder ID \(assistantMsgId). Content: '\(messageToUpdate.content)', Token: '\(token)'")
+                        if messageToUpdate.role == .assistant { // Only append if it's an assistant message
+                            messageToUpdate.content += token
+                            // messageToUpdate.isStreaming = true; // Optionally re-mark as streaming
+                        }
+                    }
+                    self.messages[index] = messageToUpdate // Assign the modified struct back to trigger UI update
                 }
             },
             onComplete: { [weak self] result in
@@ -132,94 +166,95 @@ class ChatViewModel: ObservableObject {
 
     func handleCompletion(_ result: Result<Void, AIProviderServiceError>) {
         DispatchQueue.main.async {
-            self.isLoading = false // Stop loading indicator
+            self.isLoading = false // Reset general loading state
 
-            // Find the streaming message and mark it as done
-            if let index = self.messages.lastIndex(where: { $0.isStreaming }) {
-                 self.messages[index].isStreaming = false // Mark as not streaming
-                 // If the message is still empty after completion (e.g., API failed before first token)
-                 // remove it to avoid an empty bubble.
-                 if self.messages[index].content.isEmpty {
-                     self.messages.remove(at: index)
-                 }
+            guard let assistantMsgId = self.currentAssistantMessageId,
+                  let index = self.messages.firstIndex(where: { $0.id == assistantMsgId }) else {
+                print("DEBUG HandleCompletion: No current assistant message ID or message not found at completion. Current ID: \(String(describing: self.currentAssistantMessageId))")
+                self.currentAssistantMessageId = nil // Ensure it's cleared
+                self.currentStreamingTask = nil
+                if case .failure(let error) = result {
+                    self.messages.append(Message(role: .error, content: error.localizedDescription))
+                    if case .apiKeyMissing = error { self.showAPIKeyConfigSheet = true }
+                }
+                return
             }
 
-            switch result {
-            case .success:
-                // Response finished successfully
-                break // Handled by token updates and state changes above
+            // We found the message
+            var completedMessage = self.messages[index]
+            completedMessage.isStreaming = false // Always mark as not streaming on completion
 
-            case .failure(let error):
-                // Handle the error
-                print("API Error: \(error.localizedDescription)")
-                // Add an error message to the chat
-                // Decide where to add the error: After the user message, or after the failed assistant message?
-                // Adding it at the end is generally clearer.
+            // If it was a placeholder AND it's still empty (e.g., error before any token arrived)
+            if completedMessage.isLoadingPlaceholder && completedMessage.content.isEmpty {
+                print("DEBUG HandleCompletion: Removing empty placeholder ID \(assistantMsgId) due to empty content on completion.")
+                self.messages.remove(at: index)
+            }
+            // If it was a normal streaming message (not placeholder) but ended up with empty content
+            else if !completedMessage.isLoadingPlaceholder && completedMessage.content.isEmpty {
+                print("DEBUG HandleCompletion: Removing empty streaming message ID \(assistantMsgId) due to empty content on completion.")
+                self.messages.remove(at: index)
+            }
+            // Otherwise, update the message in the array (its isStreaming flag changed)
+            else {
+                print("DEBUG HandleCompletion: Finalizing message ID \(assistantMsgId). Placeholder: \(completedMessage.isLoadingPlaceholder), Content: '\(completedMessage.content)'")
+                self.messages[index] = completedMessage
+            }
+
+            self.currentAssistantMessageId = nil // Clear the tracked ID
+            self.currentStreamingTask = nil
+
+            if case .failure(let error) = result {
+                // Check if an error message for this specific failure isn't already shown
+                // (e.g., if the assistant message was removed, we definitely need to add the error).
+                // For simplicity, we'll add it. Can be refined if duplicate errors appear.
+                print("DEBUG HandleCompletion: API Error: \(error.localizedDescription)")
                 self.messages.append(Message(role: .error, content: error.localizedDescription))
-
-                // If the error is API key missing, show config sheet
                 if case .apiKeyMissing = error {
                     self.showAPIKeyConfigSheet = true
                 }
             }
-            self.currentStreamingTask = nil // Clear the task reference
         }
     }
 
     func cancelStreaming() {
+        print("DEBUG: cancelStreaming called. Task: \(String(describing: currentStreamingTask))")
+        // The task's completion handler (didCompleteWithError with URLError.cancelled)
+        // will call handleCompletion, which resets states.
         currentStreamingTask?.cancel()
-        currentStreamingTask = nil
-        isLoading = false
-
-        // Update the last streaming message to indicate cancellation
-        if let index = messages.lastIndex(where: { $0.isStreaming }) {
-            messages[index].isStreaming = false
-            if messages[index].content.isEmpty {
-                 messages.remove(at: index) // Remove empty placeholder if nothing streamed
-             } else {
-                 messages[index].content += "\n\n(Cancelled)" // Indicate cancellation
-             }
+        // We can also pre-emptively update UI if needed, but handleCompletion should be robust.
+        // If handleCompletion might not be called immediately or reliably on cancel for some reason,
+        // then manually cleaning up the placeholder here is a fallback.
+        if let assistantMsgId = self.currentAssistantMessageId,
+           let index = self.messages.firstIndex(where: { $0.id == assistantMsgId && $0.isLoadingPlaceholder }) {
+            DispatchQueue.main.async { // Ensure UI updates on main thread
+                print("DEBUG cancelStreaming: Proactively removing placeholder ID \(assistantMsgId) on cancel.")
+                self.messages.remove(at: index)
+                self.currentAssistantMessageId = nil
+                self.isLoading = false // Also reset general loading
+            }
+        } else {
+            // If it wasn't a placeholder, handleCompletion will manage it.
+            DispatchQueue.main.async { self.isLoading = false }
         }
     }
 
-    // MARK: - Model Selection - UPDATED
-
+    // MARK: - Model Selection, New Chat, Expanded Input methods
     func selectModel(_ model: ModelConfig) {
         selectedModel = model
-        showModelSelectionSheet = false // Dismiss the sheet
-
-        // FIX 2: Clear chat history when switching models
-        startNewChat() // This also checks API keys
-
-        // checkAPIKeys() // startNewChat() does this now
+        showModelSelectionSheet = false
+        startNewChat()
     }
 
-    // MARK: - New Chat Action - ADDED
-
-    // FIX 3: Method to start a new chat
     func startNewChat() {
-        // Cancel any ongoing streaming task
-        cancelStreaming()
-        // Clear all messages
+        print("DEBUG: startNewChat called.")
+        cancelStreaming() // Important to cancel ongoing stream
         messages = []
-        // Clear input text
         inputText = ""
-        // Re-check API keys for the current model (useful if switching models triggered this)
+        currentAssistantMessageId = nil // Critical reset
+        isLoading = false             // Critical reset
         checkAPIKeys()
-        print("Started new chat.") // Debugging
     }
 
-    // MARK: - Expanded Input Action - ADDED
-
-    // FIX 1: Method to request showing the expanded input sheet
-    func expandInputArea() {
-        showExpandedInputSheet = true
-    }
-
-    // Method to update input text from the expanded sheet (though binding handles it)
-    // and dismiss the sheet
-    func dismissExpandedInput() {
-        showExpandedInputSheet = false
-    }
-
+    func expandInputArea() { showExpandedInputSheet = true }
+    func dismissExpandedInput() { showExpandedInputSheet = false }
 }

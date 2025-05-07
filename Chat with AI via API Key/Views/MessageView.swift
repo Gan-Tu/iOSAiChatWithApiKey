@@ -22,20 +22,22 @@ struct MessageView: View {
                         .padding(.all, 15) // FIX 7: Increased padding
                         .background(Color.red.opacity(0.1))
                         .cornerRadius(10)
-                } else {
-                    // FIX 5: Only show the bubble content if content is not empty
-                    if !message.content.isEmpty {
-                         Text(.init(message.content))
-                             .multilineTextAlignment(.leading)
-                             .padding(.all, 15) // FIX 7: Increased padding
-                             .background(bubbleColor)
-                             .foregroundColor(textColor)
-                             .cornerRadius(10)
-                             // Optional: Add a max width to bubbles
-                              .frame(maxWidth: UIScreen.main.bounds.width * 0.9, alignment: message.role == .user ? .trailing : .leading)
-                     }
-                    // FIX 4 & 5: Remove the spinning loading indicator here.
-                    // The bubble not appearing until the first token is the new indicator.
+                }  else if message.isLoadingPlaceholder { // Check for loading placeholder
+                    Text("Loading...")
+                        .font(.callout) // Slightly different font for loading
+                        .foregroundColor(.gray)
+                        .padding(.all, 15)
+                        .background(bubbleColor)
+                        .cornerRadius(10)
+                } else if !message.content.isEmpty {
+                    Text(.init(message.content))
+                        .multilineTextAlignment(.leading)
+                        .padding(.all, 15) // FIX 7: Increased padding
+                        .background(bubbleColor)
+                        .foregroundColor(textColor)
+                        .cornerRadius(10)
+                        // Optional: Add a max width to bubbles
+                         .frame(maxWidth: UIScreen.main.bounds.width * 0.9, alignment: message.role == .user ? .trailing : .leading)
                 }
             }
             .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
@@ -62,6 +64,7 @@ struct MessageView_Previews: PreviewProvider {
     static var previews: some View {
         VStack(spacing: 8) { // Added spacing for preview
             MessageView(message: Message(role: .user, content: "Hello, world!"))
+            MessageView(message: Message(role: .assistant, content: "", isLoadingPlaceholder: true)) // Loading state
             MessageView(message: Message(role: .assistant, content: "Hi there! How can I help you today?"))
             MessageView(message: Message(role: .assistant, content: "This is **bold** text, this is *italic* text, and this is ***bold, italic*** text."))
              // Preview for an empty streaming message (should be hidden)
