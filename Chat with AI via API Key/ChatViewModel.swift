@@ -8,6 +8,7 @@ import SwiftUI
 import Combine
 
 class ChatViewModel: ObservableObject {
+    private let selectedModelKey = "SelectedModelKey"
     @Published var messages: [Message] = []
     @Published var inputText: String = ""
     @Published var selectedModel: ModelConfig
@@ -40,7 +41,12 @@ class ChatViewModel: ObservableObject {
     private var currentAssistantMessageId: UUID? // To track the loading/streaming assistant message
 
     init() {
-        self.selectedModel = availableModels.first!
+        if let savedModelName = UserDefaults.standard.string(forKey: selectedModelKey),
+           let model = availableModels.first(where: { $0.modelName == savedModelName }) {
+            self.selectedModel = model
+        } else {
+            self.selectedModel = availableModels.first!
+        }
         checkAPIKeys()
     }
 
@@ -241,6 +247,7 @@ class ChatViewModel: ObservableObject {
     // MARK: - Model Selection, New Chat, Expanded Input methods
     func selectModel(_ model: ModelConfig) {
         selectedModel = model
+        UserDefaults.standard.set(model.modelName, forKey: selectedModelKey)
         showModelSelectionSheet = false
         startNewChat()
     }
