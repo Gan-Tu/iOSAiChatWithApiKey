@@ -16,20 +16,135 @@ class ChatViewModel: ObservableObject {
     @Published var showModelSelectionSheet = false
     @Published var showAPIKeyConfigSheet = false
     @Published var showExpandedInputSheet = false // State for the expanded input sheet
+    @Published var showAddCustomModelSheet = false // For presenting the add/edit view
+    
+    @Published var allAvailableModels: [ModelConfig] = [] // Combined list
+    private var defaultModels: [ModelConfig] = [ // Hardcoded default models
+        // xAI
+        ModelConfig(provider: .xai, modelName: "grok-3-latest", displayName: "Grok 3"),
+        ModelConfig(provider: .xai, modelName: "grok-3-mini-latest", displayName: "Grok 3 Mini (medium)", xAIReasoningEffort: "medium"), // Add reasoning parameter
+        
+        // OpenAI
+        ModelConfig(provider: .openai, modelName: "gpt-4.1-mini", displayName: "GPT-4.1 Mini"),
+        ModelConfig(provider: .openai, modelName: "gpt-4.1", displayName: "GPT-4.1"),
+        ModelConfig(provider: .openai, modelName: "o4-mini", displayName: "o4 Mini (medium)", openAIReasoningEffort: "medium"), // Add reasoning parameter
+        
+        // Google Gemini
+        ModelConfig(provider: .gemini, modelName: "gemini-2.5-flash-preview-04-17", displayName: "Gemini 2.5 Flash"),
+        ModelConfig(provider: .gemini, modelName: "gemini-2.5-pro-preview-05-06", displayName: "Gemini 2.5 Pro")
+    ]
+    @Published var customModels: [ModelConfig] = [] {
+        didSet {
+            saveCustomModels()
+            updateAllAvailableModels() // Update combined list when custom models change
+        }
+    }
 
     private let keychainService = KeychainService()
+    
+    // UserDefaults keys
+    private let lastSelectedModelProviderKey = "lastSelectedModelProviderKey"
+    private let lastSelectedModelNameKey = "lastSelectedModelNameKey"
+    private let customModelsKey = "customModelsKey_v2" // Use a new key if format changes
 
     private var currentStreamingTask: URLSessionDataTask?
     private var currentAssistantMessageId: UUID? // To track the loading/streaming assistant message
 
     init() {
-        if let savedModelName = UserDefaults.standard.string(forKey: selectedModelKey),
-           let model = availableModels.first(where: { $0.modelName == savedModelName }) {
-            self.selectedModel = model
+        // 1. Initialize selectedModel with a guaranteed default value first.
+        //    Make sure defaultModels is not empty, or handle that case.
+        if let firstDefault = defaultModels.first {
+            self.selectedModel = firstDefault
         } else {
-            self.selectedModel = availableModels.first!
+            // This case should ideally not happen if defaultModels is always populated.
+            // Provide an absolute fallback if defaultModels could somehow be empty.
+            self.selectedModel = ModelConfig(provider: .openai, modelName: "gpt-4.1", displayName: "Fallback Default GPT-4.1")
+            print("CRITICAL WARNING: defaultModels array was empty during init. Using absolute fallback.")
         }
+
+        // 2. Now that all stored properties are initialized, we can call instance methods.
+        loadCustomModels()          // Loads into self.customModels, triggers didSet
+        updateAllAvailableModels()  // Populates self.allAvailableModels
+
+        // 3. Attempt to load and set the *actual* last selected model from UserDefaults.
+        //    This will override the preliminary default if a saved model is found.
+        if let lastModelProviderRaw = UserDefaults.standard.string(forKey: lastSelectedModelProviderKey),
+           let lastModelName = UserDefaults.standard.string(forKey: lastSelectedModelNameKey),
+           let lastProvider = Provider(rawValue: lastModelProviderRaw),
+           let foundModelInAll = allAvailableModels.first(where: { $0.provider == lastProvider && $0.modelName == lastModelName }) {
+            self.selectedModel = foundModelInAll // Override with the loaded model
+            print("DEBUG: Loaded last selected model from UserDefaults: \(foundModelInAll.displayName)")
+        } else {
+            // If no saved model, or saved model is no longer in allAvailableModels,
+            // selectedModel remains the preliminary default set in step 1.
+            // We might want to ensure it's the first of the *combined* list if custom models were loaded.
+            if let firstOverall = allAvailableModels.first {
+                 self.selectedModel = firstOverall
+            }
+            print("DEBUG: No valid last selected model found in UserDefaults or it's no longer available. Using first available model: \(self.selectedModel.displayName)")
+        }
+
+        // 4. Finally, check API keys for the now definitively set selectedModel.
         checkAPIKeys()
+    }
+    
+    private func updateAllAvailableModels() {
+        // Combine default and custom models.
+        // Sort them for consistent display order.
+        allAvailableModels = (defaultModels + customModels).sorted {
+            if $0.provider.name == $1.provider.name {
+                return $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+            }
+            return $0.provider.name.localizedCaseInsensitiveCompare($1.provider.name) == .orderedAscending
+        }
+    }
+
+    // MARK: - Custom Model Persistence
+    private func loadCustomModels() {
+        if let savedData = UserDefaults.standard.data(forKey: customModelsKey) {
+            do {
+                // This will trigger the didSet for customModels if successful
+                self.customModels = try JSONDecoder().decode([ModelConfig].self, from: savedData)
+                print("DEBUG: Loaded \(self.customModels.count) custom models.")
+            } catch {
+                print("Error decoding custom models: \(error.localizedDescription)")
+                self.customModels = [] // Ensure it's an empty array on failure
+            }
+        } else {
+            self.customModels = [] // No saved custom models
+        }
+    }
+
+    private func saveCustomModels() {
+        do {
+            let data = try JSONEncoder().encode(customModels)
+            UserDefaults.standard.set(data, forKey: customModelsKey)
+            print("DEBUG: Saved \(customModels.count) custom models.")
+        } catch {
+            print("Error encoding custom models: \(error.localizedDescription)")
+        }
+    }
+
+    func addCustomModel(_ model: ModelConfig) {
+        var newModel = model
+        newModel.isCustom = true
+        if !customModels.contains(where: { $0.provider == newModel.provider && $0.modelName == newModel.modelName }) {
+            customModels.append(newModel)
+        } else {
+            print("DEBUG: Custom model with provider \(newModel.provider.name) and name \(newModel.modelName) already exists.")
+        }
+    }
+    
+    func deleteCustomModel(model: ModelConfig) {
+        guard model.isCustom else { return }
+        customModels.removeAll { $0.id == model.id }
+    }
+    
+    // MARK: - Model Persistence (Last Selected)
+    private func saveSelectedModelToUserDefaults(_ model: ModelConfig) {
+        UserDefaults.standard.set(model.provider.rawValue, forKey: lastSelectedModelProviderKey)
+        UserDefaults.standard.set(model.modelName, forKey: lastSelectedModelNameKey)
+        print("DEBUG: Saved selected model to UserDefaults: \(model.displayName)")
     }
 
     // MARK: - API Key Management (No changes needed here from previous version)
