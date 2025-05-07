@@ -58,9 +58,9 @@ class ChatViewModel: ObservableObject {
     func saveAPIKey(_ apiKey: String, for provider: Provider) {
         let status = keychainService.save(key: provider.apiKeyKeychainKey, value: apiKey)
         if status != errSecSuccess {
-            print("Failed to save API key for \(provider.name): \(status)")
+            // print("Failed to save API key for \(provider.name): \(status)")
         } else {
-             print("Successfully saved API key for \(provider.name)")
+             // print("Successfully saved API key for \(provider.name)")
              checkAPIKeys()
         }
     }
@@ -94,7 +94,7 @@ class ChatViewModel: ObservableObject {
         currentAssistantMessageId = placeholderId // Track this ID
         let placeholderMessage = Message(id: placeholderId, role: .assistant, content: "", isStreaming: false, isLoadingPlaceholder: true)
         messages.append(placeholderMessage)
-        print("DEBUG: Added placeholder with ID: \(placeholderId)")
+        // print("DEBUG: Added placeholder with ID: \(placeholderId)")
 
 
         guard let apiKey = getAPIKey(for: selectedModel.provider), !apiKey.isEmpty else {
@@ -123,7 +123,7 @@ class ChatViewModel: ObservableObject {
                     guard let self = self else { return }
                     guard let assistantMsgId = self.currentAssistantMessageId,
                           let index = self.messages.firstIndex(where: { $0.id == assistantMsgId }) else {
-                        print("DEBUG OnToken: No current assistant message found or ID mismatch. Current ID: \(String(describing: self.currentAssistantMessageId))")
+                        // print("DEBUG OnToken: No current assistant message found or ID mismatch. Current ID: \(String(describing: self.currentAssistantMessageId))")
                         // Remove any existing loading placeholder to avoid duplication
                         self.messages.removeAll { $0.isLoadingPlaceholder }
                         // Fallback: if message is somehow lost, create a new one if token is not empty
@@ -143,18 +143,18 @@ class ChatViewModel: ObservableObject {
 
                     if messageToUpdate.isLoadingPlaceholder {
                         // This is the first token for this message
-                        print("DEBUG OnToken: First token for placeholder ID \(assistantMsgId). Token: '\(token)'. Clearing placeholder.")
+                        // print("DEBUG OnToken: First token for placeholder ID \(assistantMsgId). Token: '\(token)'. Clearing placeholder.")
                         messageToUpdate.isLoadingPlaceholder = false
                         messageToUpdate.isStreaming = true
                         messageToUpdate.content = token // Set initial content
                     } else if messageToUpdate.isStreaming {
                         // Subsequent token
-                         print("DEBUG OnToken: Subsequent token for streaming ID \(assistantMsgId). Token: '\(token)'")
+                        // print("DEBUG OnToken: Subsequent token for streaming ID \(assistantMsgId). Token: '\(token)'")
                         messageToUpdate.content += token
                     } else {
                         // Message was found but isn't a placeholder and isn't streaming
                         // This state shouldn't ideally occur if logic is correct
-                        print("DEBUG OnToken: Token for non-streaming/non-placeholder ID \(assistantMsgId). Content: '\(messageToUpdate.content)', Token: '\(token)'")
+                        // print("DEBUG OnToken: Token for non-streaming/non-placeholder ID \(assistantMsgId). Content: '\(messageToUpdate.content)', Token: '\(token)'")
                         if messageToUpdate.role == .assistant { // Only append if it's an assistant message
                             messageToUpdate.content += token
                             // messageToUpdate.isStreaming = true; // Optionally re-mark as streaming
@@ -175,7 +175,7 @@ class ChatViewModel: ObservableObject {
 
             guard let assistantMsgId = self.currentAssistantMessageId,
                   let index = self.messages.firstIndex(where: { $0.id == assistantMsgId }) else {
-                print("DEBUG HandleCompletion: No current assistant message ID or message not found at completion. Current ID: \(String(describing: self.currentAssistantMessageId))")
+                // print("DEBUG HandleCompletion: No current assistant message ID or message not found at completion. Current ID: \(String(describing: self.currentAssistantMessageId))")
                 self.currentAssistantMessageId = nil // Ensure it's cleared
                 self.currentStreamingTask = nil
                 if case .failure(let error) = result {
@@ -191,17 +191,17 @@ class ChatViewModel: ObservableObject {
 
             // If it was a placeholder AND it's still empty (e.g., error before any token arrived)
             if completedMessage.isLoadingPlaceholder && completedMessage.content.isEmpty {
-                print("DEBUG HandleCompletion: Removing empty placeholder ID \(assistantMsgId) due to empty content on completion.")
+                // print("DEBUG HandleCompletion: Removing empty placeholder ID \(assistantMsgId) due to empty content on completion.")
                 self.messages.remove(at: index)
             }
             // If it was a normal streaming message (not placeholder) but ended up with empty content
             else if !completedMessage.isLoadingPlaceholder && completedMessage.content.isEmpty {
-                print("DEBUG HandleCompletion: Removing empty streaming message ID \(assistantMsgId) due to empty content on completion.")
+                // print("DEBUG HandleCompletion: Removing empty streaming message ID \(assistantMsgId) due to empty content on completion.")
                 self.messages.remove(at: index)
             }
             // Otherwise, update the message in the array (its isStreaming flag changed)
             else {
-                print("DEBUG HandleCompletion: Finalizing message ID \(assistantMsgId). Placeholder: \(completedMessage.isLoadingPlaceholder), Content: '\(completedMessage.content)'")
+                // print("DEBUG HandleCompletion: Finalizing message ID \(assistantMsgId). Placeholder: \(completedMessage.isLoadingPlaceholder), Content: '\(completedMessage.content)'")
                 self.messages[index] = completedMessage
             }
 
@@ -212,7 +212,7 @@ class ChatViewModel: ObservableObject {
                 // Check if an error message for this specific failure isn't already shown
                 // (e.g., if the assistant message was removed, we definitely need to add the error).
                 // For simplicity, we'll add it. Can be refined if duplicate errors appear.
-                print("DEBUG HandleCompletion: API Error: \(error.localizedDescription)")
+                // print("DEBUG HandleCompletion: API Error: \(error.localizedDescription)")
                 self.messages.append(Message(role: .error, content: error.localizedDescription))
                 if case .apiKeyMissing = error {
                     self.showAPIKeyConfigSheet = true
@@ -222,7 +222,7 @@ class ChatViewModel: ObservableObject {
     }
 
     func cancelStreaming() {
-        print("DEBUG: cancelStreaming called. Task: \(String(describing: currentStreamingTask))")
+        // print("DEBUG: cancelStreaming called. Task: \(String(describing: currentStreamingTask))")
         // The task's completion handler (didCompleteWithError with URLError.cancelled)
         // will call handleCompletion, which resets states.
         currentStreamingTask?.cancel()
@@ -232,7 +232,7 @@ class ChatViewModel: ObservableObject {
         if let assistantMsgId = self.currentAssistantMessageId,
            let index = self.messages.firstIndex(where: { $0.id == assistantMsgId && $0.isLoadingPlaceholder }) {
             DispatchQueue.main.async { // Ensure UI updates on main thread
-                print("DEBUG cancelStreaming: Proactively removing placeholder ID \(assistantMsgId) on cancel.")
+                // print("DEBUG cancelStreaming: Proactively removing placeholder ID \(assistantMsgId) on cancel.")
                 self.messages.remove(at: index)
                 self.currentAssistantMessageId = nil
                 self.isLoading = false // Also reset general loading
@@ -252,7 +252,7 @@ class ChatViewModel: ObservableObject {
     }
 
     func startNewChat() {
-        print("DEBUG: startNewChat called.")
+        // print("DEBUG: startNewChat called.")
         cancelStreaming() // Important to cancel ongoing stream
         messages = []
         inputText = ""
