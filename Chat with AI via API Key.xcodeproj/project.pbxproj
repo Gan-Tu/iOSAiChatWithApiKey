@@ -10,9 +10,22 @@
 		59EF85AC2DCBA3910032FA82 /* Chat with AI via API Key.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Chat with AI via API Key.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		59EF85F62DCBD3830032FA82 /* Exceptions for "Chat with AI via API Key" folder in "Chat with AI via API Key" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"Chat-with-AI-via-API-Key-Info.plist",
+			);
+			target = 59EF85AB2DCBA3910032FA82 /* Chat with AI via API Key */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		59EF85AE2DCBA3910032FA82 /* Chat with AI via API Key */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				59EF85F62DCBD3830032FA82 /* Exceptions for "Chat with AI via API Key" folder in "Chat with AI via API Key" target */,
+			);
 			path = "Chat with AI via API Key";
 			sourceTree = "<group>";
 		};
@@ -256,7 +269,9 @@
 				DEVELOPMENT_TEAM = K3URZZFDQP;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Chat-with-AI-via-API-Key-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "AI Chat";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -291,7 +306,9 @@
 				DEVELOPMENT_TEAM = K3URZZFDQP;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Chat-with-AI-via-API-Key-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "AI Chat";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
