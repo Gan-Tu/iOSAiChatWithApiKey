@@ -15,7 +15,7 @@ struct ModelSelectionView: View {
             List {
                 ForEach(Provider.allCases) { provider in
                     Section(header: Text(provider.name)) {
-                        ForEach(viewModel.availableModels.filter { $0.provider == provider }) { model in
+                        ForEach(availableModels.filter { $0.provider == provider }) { model in
                             Button {
                                 viewModel.selectModel(model)
                                 dismiss() // Dismiss the sheet after selection

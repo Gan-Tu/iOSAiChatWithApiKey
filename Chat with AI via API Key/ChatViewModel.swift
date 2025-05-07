@@ -19,23 +19,6 @@ class ChatViewModel: ObservableObject {
 
     private let keychainService = KeychainService()
 
-    // Hardcoded list of supported models - UPDATED
-    let availableModels: [ModelConfig] = [
-        // xAI
-        ModelConfig(provider: .xai, modelName: "grok-3-latest", displayName: "Grok 3"),
-        ModelConfig(provider: .xai, modelName: "grok-3-mini-latest", displayName: "Grok 3 Mini (medium)", xAIReasoningEffort: "medium"), // Add reasoning parameter
-        
-        // OpenAI
-        ModelConfig(provider: .openai, modelName: "gpt-4.1-mini", displayName: "GPT-4.1 Mini"),
-        ModelConfig(provider: .openai, modelName: "gpt-4.1", displayName: "GPT-4.1"),
-        ModelConfig(provider: .openai, modelName: "gpt-4o-mini", displayName: "GPT-4o Mini"), // Assuming no reasoning needed by default, adjust if required
-        ModelConfig(provider: .openai, modelName: "o4-mini", displayName: "o4 Mini (medium)", openAIReasoningEffort: "medium"), // Add reasoning parameter
-        
-        // Google Gemini
-        ModelConfig(provider: .gemini, modelName: "gemini-2.5-flash-preview-04-17", displayName: "Gemini 2.5 Flash"),
-        ModelConfig(provider: .gemini, modelName: "gemini-2.5-pro-preview-05-06", displayName: "Gemini 2.5 Pro")
-    ]
-
     private var currentStreamingTask: URLSessionDataTask?
     private var currentAssistantMessageId: UUID? // To track the loading/streaming assistant message
 
