@@ -29,4 +29,12 @@ enum Provider: String, Identifiable, CaseIterable {
         case .gemini: return "gemini_api_key"
         }
     }
+    
+    var priority: Int {
+        switch self {
+        case .openai: return 1
+        case .xai: return 2
+        case .gemini: return 3
+        }
+    }
 }

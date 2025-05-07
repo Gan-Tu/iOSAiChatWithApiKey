@@ -12,6 +12,7 @@ struct ModelConfig: Identifiable, Codable, Equatable, Hashable { // Add Codable,
     var provider: Provider
     var modelName: String // This is the actual model ID used in API calls
     var displayName: String
+    var priority: Int = 10
     var openAIReasoningEffort: String?
     var xAIReasoningEffort: String?
     var isCustom: Bool = false // Flag to distinguish custom models
@@ -21,12 +22,13 @@ struct ModelConfig: Identifiable, Codable, Equatable, Hashable { // Add Codable,
     }
 
     // Initializer for creating new models
-    init(id: UUID = UUID(), provider: Provider, modelName: String, displayName: String,
+    init(id: UUID = UUID(), provider: Provider, modelName: String, displayName: String, priority: Int = 10,
          openAIReasoningEffort: String? = nil, xAIReasoningEffort: String? = nil, isCustom: Bool = false) {
         self.id = id
         self.provider = provider
         self.modelName = modelName
         self.displayName = displayName
+        self.priority = priority
         self.openAIReasoningEffort = openAIReasoningEffort
         self.xAIReasoningEffort = xAIReasoningEffort
         self.isCustom = isCustom

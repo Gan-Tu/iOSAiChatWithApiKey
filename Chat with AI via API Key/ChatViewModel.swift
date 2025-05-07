@@ -21,17 +21,17 @@ class ChatViewModel: ObservableObject {
     @Published var allAvailableModels: [ModelConfig] = [] // Combined list
     private var defaultModels: [ModelConfig] = [ // Hardcoded default models
         // xAI
-        ModelConfig(provider: .xai, modelName: "grok-3-latest", displayName: "Grok 3"),
-        ModelConfig(provider: .xai, modelName: "grok-3-mini-latest", displayName: "Grok 3 Mini (medium)", xAIReasoningEffort: "medium"), // Add reasoning parameter
+        ModelConfig(provider: .xai, modelName: "grok-3-latest", displayName: "Grok 3", priority: 1),
+        ModelConfig(provider: .xai, modelName: "grok-3-mini-latest", displayName: "Grok 3 Mini (medium)", priority: 2, xAIReasoningEffort: "medium"), // Add reasoning parameter
         
         // OpenAI
-        ModelConfig(provider: .openai, modelName: "gpt-4.1-mini", displayName: "GPT-4.1 Mini"),
-        ModelConfig(provider: .openai, modelName: "gpt-4.1", displayName: "GPT-4.1"),
-        ModelConfig(provider: .openai, modelName: "o4-mini", displayName: "o4 Mini (medium)", openAIReasoningEffort: "medium"), // Add reasoning parameter
+        ModelConfig(provider: .openai, modelName: "gpt-4.1-mini", displayName: "GPT-4.1 Mini", priority: 1),
+        ModelConfig(provider: .openai, modelName: "gpt-4.1", displayName: "GPT-4.1", priority: 2),
+        ModelConfig(provider: .openai, modelName: "o4-mini", displayName: "o4 Mini (medium)", priority: 3, openAIReasoningEffort: "medium"), // Add reasoning parameter
         
         // Google Gemini
-        ModelConfig(provider: .gemini, modelName: "gemini-2.5-flash-preview-04-17", displayName: "Gemini 2.5 Flash"),
-        ModelConfig(provider: .gemini, modelName: "gemini-2.5-pro-preview-05-06", displayName: "Gemini 2.5 Pro")
+        ModelConfig(provider: .gemini, modelName: "gemini-2.5-flash-preview-04-17", displayName: "Gemini 2.5 Flash", priority: 1),
+        ModelConfig(provider: .gemini, modelName: "gemini-2.5-pro-preview-05-06", displayName: "Gemini 2.5 Pro", priority: 2)
     ]
     @Published var customModels: [ModelConfig] = [] {
         didSet {
@@ -59,7 +59,7 @@ class ChatViewModel: ObservableObject {
             // This case should ideally not happen if defaultModels is always populated.
             // Provide an absolute fallback if defaultModels could somehow be empty.
             self.selectedModel = ModelConfig(provider: .openai, modelName: "gpt-4.1", displayName: "Fallback Default GPT-4.1")
-            print("CRITICAL WARNING: defaultModels array was empty during init. Using absolute fallback.")
+            // print("CRITICAL WARNING: defaultModels array was empty during init. Using absolute fallback.")
         }
 
         // 2. Now that all stored properties are initialized, we can call instance methods.
@@ -73,7 +73,7 @@ class ChatViewModel: ObservableObject {
            let lastProvider = Provider(rawValue: lastModelProviderRaw),
            let foundModelInAll = allAvailableModels.first(where: { $0.provider == lastProvider && $0.modelName == lastModelName }) {
             self.selectedModel = foundModelInAll // Override with the loaded model
-            print("DEBUG: Loaded last selected model from UserDefaults: \(foundModelInAll.displayName)")
+            // print("DEBUG: Loaded last selected model from UserDefaults: \(foundModelInAll.displayName)")
         } else {
             // If no saved model, or saved model is no longer in allAvailableModels,
             // selectedModel remains the preliminary default set in step 1.
@@ -81,7 +81,7 @@ class ChatViewModel: ObservableObject {
             if let firstOverall = allAvailableModels.first {
                  self.selectedModel = firstOverall
             }
-            print("DEBUG: No valid last selected model found in UserDefaults or it's no longer available. Using first available model: \(self.selectedModel.displayName)")
+            // print("DEBUG: No valid last selected model found in UserDefaults or it's no longer available. Using first available model: \(self.selectedModel.displayName)")
         }
 
         // 4. Finally, check API keys for the now definitively set selectedModel.
@@ -105,9 +105,9 @@ class ChatViewModel: ObservableObject {
             do {
                 // This will trigger the didSet for customModels if successful
                 self.customModels = try JSONDecoder().decode([ModelConfig].self, from: savedData)
-                print("DEBUG: Loaded \(self.customModels.count) custom models.")
+                // print("DEBUG: Loaded \(self.customModels.count) custom models.")
             } catch {
-                print("Error decoding custom models: \(error.localizedDescription)")
+                // print("Error decoding custom models: \(error.localizedDescription)")
                 self.customModels = [] // Ensure it's an empty array on failure
             }
         } else {
@@ -119,9 +119,9 @@ class ChatViewModel: ObservableObject {
         do {
             let data = try JSONEncoder().encode(customModels)
             UserDefaults.standard.set(data, forKey: customModelsKey)
-            print("DEBUG: Saved \(customModels.count) custom models.")
+            // print("DEBUG: Saved \(customModels.count) custom models.")
         } catch {
-            print("Error encoding custom models: \(error.localizedDescription)")
+            // print("Error encoding custom models: \(error.localizedDescription)")
         }
     }
 
@@ -129,22 +129,65 @@ class ChatViewModel: ObservableObject {
         var newModel = model
         newModel.isCustom = true
         if !customModels.contains(where: { $0.provider == newModel.provider && $0.modelName == newModel.modelName }) {
-            customModels.append(newModel)
+            customModels.append(newModel) // This triggers didSet, which saves and updates allAvailableModels
+            // Auto-select the newly added model
+            selectModel(newModel, isNewlyAdded: true) // Pass a flag to avoid clearing chat unnecessarily if desired
+            // print("DEBUG: Added and selected custom model: \(newModel.displayName)")
         } else {
-            print("DEBUG: Custom model with provider \(newModel.provider.name) and name \(newModel.modelName) already exists.")
+            // print("DEBUG: Custom model with provider \(newModel.provider.name) and name \(newModel.modelName) already exists.")
         }
     }
     
     func deleteCustomModel(model: ModelConfig) {
-        guard model.isCustom else { return }
-        customModels.removeAll { $0.id == model.id }
+        guard model.isCustom else {
+            print("DEBUG: Attempted to delete a non-custom model: \(model.displayName)")
+            return
+        }
+        
+        let providerOfDeletedModel = model.provider
+        let wasSelectedModel = selectedModel.id == model.id
+        
+        customModels.removeAll { $0.id == model.id } // Triggers didSet -> save & updateAllAvailableModels
+        
+        if wasSelectedModel {
+            // Try to select the first default model of the same provider
+            if let firstDefaultInProvider = defaultModels.first(where: { $0.provider == providerOfDeletedModel }) {
+                print("DEBUG: Deleted model was selected. Selecting first default in same provider: \(firstDefaultInProvider.displayName)")
+                selectModel(firstDefaultInProvider, forDeleteOperation: true)
+            }
+            // Else, try to select the first custom model of the same provider (if any are left)
+            else if let firstCustomInProvider = customModels.first(where: { $0.provider == providerOfDeletedModel }) {
+                print("DEBUG: Deleted model was selected. No default in provider. Selecting first custom in same provider: \(firstCustomInProvider.displayName)")
+                selectModel(firstCustomInProvider, forDeleteOperation: true)
+            }
+            // Else, fall back to the overall first available model (could be default or custom from another provider)
+            else if let firstOverall = allAvailableModels.first {
+                print("DEBUG: Deleted model was selected. No models in same provider. Selecting first overall: \(firstOverall.displayName)")
+                selectModel(firstOverall, forDeleteOperation: true)
+            }
+            // Absolute fallback if allAvailableModels becomes empty (should not happen if defaultModels exists)
+            else if let absoluteFallback = defaultModels.first {
+                 print("DEBUG: Deleted model was selected. All available models empty. Selecting absolute default fallback: \(absoluteFallback.displayName)")
+                 selectModel(absoluteFallback, forDeleteOperation: true)
+            } else {
+                // This state is highly unlikely if defaultModels is non-empty.
+                // Handle gracefully, perhaps by setting a placeholder or error state.
+                print("CRITICAL: No models available to select after deletion.")
+                // You might need to define a "no model selected" state if this is possible.
+                // For now, it might crash if selectModel expects a valid model and finds none.
+                // Let's ensure `selectModel` can handle this gracefully or `allAvailableModels` is never truly empty.
+                // A robust app would have a "nil" or "placeholder" selectedModel state.
+            }
+        }
+        print("DEBUG: Deleted custom model: \(model.displayName)")
     }
+
     
     // MARK: - Model Persistence (Last Selected)
     private func saveSelectedModelToUserDefaults(_ model: ModelConfig) {
         UserDefaults.standard.set(model.provider.rawValue, forKey: lastSelectedModelProviderKey)
         UserDefaults.standard.set(model.modelName, forKey: lastSelectedModelNameKey)
-        print("DEBUG: Saved selected model to UserDefaults: \(model.displayName)")
+        // print("DEBUG: Saved selected model to UserDefaults: \(model.displayName)")
     }
 
     // MARK: - API Key Management (No changes needed here from previous version)
@@ -156,9 +199,9 @@ class ChatViewModel: ObservableObject {
     func saveAPIKey(_ apiKey: String, for provider: Provider) {
         let status = keychainService.save(key: provider.apiKeyKeychainKey, value: apiKey)
         if status != errSecSuccess {
-            // print("Failed to save API key for \(provider.name): \(status)")
+            // // print("Failed to save API key for \(provider.name): \(status)")
         } else {
-             // print("Successfully saved API key for \(provider.name)")
+             // // print("Successfully saved API key for \(provider.name)")
              checkAPIKeys()
         }
     }
@@ -192,7 +235,7 @@ class ChatViewModel: ObservableObject {
         currentAssistantMessageId = placeholderId // Track this ID
         let placeholderMessage = Message(id: placeholderId, role: .assistant, content: "", isStreaming: false, isLoadingPlaceholder: true)
         messages.append(placeholderMessage)
-        // print("DEBUG: Added placeholder with ID: \(placeholderId)")
+        // // print("DEBUG: Added placeholder with ID: \(placeholderId)")
 
 
         guard let apiKey = getAPIKey(for: selectedModel.provider), !apiKey.isEmpty else {
@@ -221,7 +264,7 @@ class ChatViewModel: ObservableObject {
                     guard let self = self else { return }
                     guard let assistantMsgId = self.currentAssistantMessageId,
                           let index = self.messages.firstIndex(where: { $0.id == assistantMsgId }) else {
-                        // print("DEBUG OnToken: No current assistant message found or ID mismatch. Current ID: \(String(describing: self.currentAssistantMessageId))")
+                        // // print("DEBUG OnToken: No current assistant message found or ID mismatch. Current ID: \(String(describing: self.currentAssistantMessageId))")
                         // Remove any existing loading placeholder to avoid duplication
                         self.messages.removeAll { $0.isLoadingPlaceholder }
                         // Fallback: if message is somehow lost, create a new one if token is not empty
@@ -241,18 +284,18 @@ class ChatViewModel: ObservableObject {
 
                     if messageToUpdate.isLoadingPlaceholder {
                         // This is the first token for this message
-                        // print("DEBUG OnToken: First token for placeholder ID \(assistantMsgId). Token: '\(token)'. Clearing placeholder.")
+                        // // print("DEBUG OnToken: First token for placeholder ID \(assistantMsgId). Token: '\(token)'. Clearing placeholder.")
                         messageToUpdate.isLoadingPlaceholder = false
                         messageToUpdate.isStreaming = true
                         messageToUpdate.content = token // Set initial content
                     } else if messageToUpdate.isStreaming {
                         // Subsequent token
-                        // print("DEBUG OnToken: Subsequent token for streaming ID \(assistantMsgId). Token: '\(token)'")
+                        // // print("DEBUG OnToken: Subsequent token for streaming ID \(assistantMsgId). Token: '\(token)'")
                         messageToUpdate.content += token
                     } else {
                         // Message was found but isn't a placeholder and isn't streaming
                         // This state shouldn't ideally occur if logic is correct
-                        // print("DEBUG OnToken: Token for non-streaming/non-placeholder ID \(assistantMsgId). Content: '\(messageToUpdate.content)', Token: '\(token)'")
+                        // // print("DEBUG OnToken: Token for non-streaming/non-placeholder ID \(assistantMsgId). Content: '\(messageToUpdate.content)', Token: '\(token)'")
                         if messageToUpdate.role == .assistant { // Only append if it's an assistant message
                             messageToUpdate.content += token
                             // messageToUpdate.isStreaming = true; // Optionally re-mark as streaming
@@ -273,7 +316,7 @@ class ChatViewModel: ObservableObject {
 
             guard let assistantMsgId = self.currentAssistantMessageId,
                   let index = self.messages.firstIndex(where: { $0.id == assistantMsgId }) else {
-                // print("DEBUG HandleCompletion: No current assistant message ID or message not found at completion. Current ID: \(String(describing: self.currentAssistantMessageId))")
+                // // print("DEBUG HandleCompletion: No current assistant message ID or message not found at completion. Current ID: \(String(describing: self.currentAssistantMessageId))")
                 self.currentAssistantMessageId = nil // Ensure it's cleared
                 self.currentStreamingTask = nil
                 if case .failure(let error) = result {
@@ -289,17 +332,17 @@ class ChatViewModel: ObservableObject {
 
             // If it was a placeholder AND it's still empty (e.g., error before any token arrived)
             if completedMessage.isLoadingPlaceholder && completedMessage.content.isEmpty {
-                // print("DEBUG HandleCompletion: Removing empty placeholder ID \(assistantMsgId) due to empty content on completion.")
+                // // print("DEBUG HandleCompletion: Removing empty placeholder ID \(assistantMsgId) due to empty content on completion.")
                 self.messages.remove(at: index)
             }
             // If it was a normal streaming message (not placeholder) but ended up with empty content
             else if !completedMessage.isLoadingPlaceholder && completedMessage.content.isEmpty {
-                // print("DEBUG HandleCompletion: Removing empty streaming message ID \(assistantMsgId) due to empty content on completion.")
+                // // print("DEBUG HandleCompletion: Removing empty streaming message ID \(assistantMsgId) due to empty content on completion.")
                 self.messages.remove(at: index)
             }
             // Otherwise, update the message in the array (its isStreaming flag changed)
             else {
-                // print("DEBUG HandleCompletion: Finalizing message ID \(assistantMsgId). Placeholder: \(completedMessage.isLoadingPlaceholder), Content: '\(completedMessage.content)'")
+                // // print("DEBUG HandleCompletion: Finalizing message ID \(assistantMsgId). Placeholder: \(completedMessage.isLoadingPlaceholder), Content: '\(completedMessage.content)'")
                 self.messages[index] = completedMessage
             }
 
@@ -310,7 +353,7 @@ class ChatViewModel: ObservableObject {
                 // Check if an error message for this specific failure isn't already shown
                 // (e.g., if the assistant message was removed, we definitely need to add the error).
                 // For simplicity, we'll add it. Can be refined if duplicate errors appear.
-                // print("DEBUG HandleCompletion: API Error: \(error.localizedDescription)")
+                // // print("DEBUG HandleCompletion: API Error: \(error.localizedDescription)")
                 self.messages.append(Message(role: .error, content: error.localizedDescription))
                 if case .apiKeyMissing = error {
                     self.showAPIKeyConfigSheet = true
@@ -320,7 +363,7 @@ class ChatViewModel: ObservableObject {
     }
 
     func cancelStreaming() {
-        // print("DEBUG: cancelStreaming called. Task: \(String(describing: currentStreamingTask))")
+        // // print("DEBUG: cancelStreaming called. Task: \(String(describing: currentStreamingTask))")
         // The task's completion handler (didCompleteWithError with URLError.cancelled)
         // will call handleCompletion, which resets states.
         currentStreamingTask?.cancel()
@@ -330,7 +373,7 @@ class ChatViewModel: ObservableObject {
         if let assistantMsgId = self.currentAssistantMessageId,
            let index = self.messages.firstIndex(where: { $0.id == assistantMsgId && $0.isLoadingPlaceholder }) {
             DispatchQueue.main.async { // Ensure UI updates on main thread
-                // print("DEBUG cancelStreaming: Proactively removing placeholder ID \(assistantMsgId) on cancel.")
+                // // print("DEBUG cancelStreaming: Proactively removing placeholder ID \(assistantMsgId) on cancel.")
                 self.messages.remove(at: index)
                 self.currentAssistantMessageId = nil
                 self.isLoading = false // Also reset general loading
@@ -341,16 +384,24 @@ class ChatViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Model Selection, New Chat, Expanded Input methods
-    func selectModel(_ model: ModelConfig) {
+    // MARK: - Model Selection - UPDATED
+    // Overload or add a parameter to differentiate selection types if needed
+    func selectModel(_ model: ModelConfig, isNewlyAdded: Bool = false, forDeleteOperation: Bool = false) {
+        let previousSelectedModelId = selectedModel.id // Capture before changing
         selectedModel = model
-        UserDefaults.standard.set(model.modelName, forKey: selectedModelKey)
-        showModelSelectionSheet = false
-        startNewChat()
+        saveSelectedModelToUserDefaults(model)
+
+        // If the model actually changed OR it's a delete operation forcing a context reset
+        if model.id != previousSelectedModelId || forDeleteOperation {
+            startNewChat()
+        } else if isNewlyAdded { // Newly added but was already selected (e.g., re-adding a similar)
+            checkAPIKeys() // Just ensure keys are checked
+        }
+        // showModelSelectionSheet = false // This should be managed by the View presenting the sheet
     }
 
     func startNewChat() {
-        // print("DEBUG: startNewChat called.")
+        // // print("DEBUG: startNewChat called.")
         cancelStreaming() // Important to cancel ongoing stream
         messages = []
         inputText = ""
