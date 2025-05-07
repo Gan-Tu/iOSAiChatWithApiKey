@@ -18,7 +18,7 @@ enum Provider: String, Identifiable, CaseIterable {
         switch self {
         case .openai: return "OpenAI"
         case .xai: return "xAI"
-        case .gemini: return "Google Gemini"
+        case .gemini: return "Google"
         }
     }
 
