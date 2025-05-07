@@ -28,17 +28,17 @@ struct ContentView: View {
                         }
                         .padding(.top, 8) // Added slightly more top padding
                         .padding(.bottom, 8) // Added slightly more bottom padding
-                        .onChange(of: viewModel.messages.count) { _ in
-                            // Scroll to the bottom when a new message is added
-                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { // Keep the delay
-                                 scrollToBottom(proxy: proxy)
-                             }
-                        }
-                        .onAppear {
-                              DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { // Keep the delay
-                                  scrollToBottom(proxy: proxy)
-                              }
-                         }
+//                        .onChange(of: viewModel.messages.count) { _ in
+//                            // Scroll to the bottom when a new message is added
+//                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { // Keep the delay
+//                                 scrollToBottom(proxy: proxy)
+//                             }
+//                        }
+//                        .onAppear {
+//                              DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { // Keep the delay
+//                                  scrollToBottom(proxy: proxy)
+//                              }
+//                         }
                     }
                 }
                 // Ignore keyboard safe area so the scroll view extends behind it

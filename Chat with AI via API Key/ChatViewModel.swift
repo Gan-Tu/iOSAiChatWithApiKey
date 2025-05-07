@@ -33,7 +33,6 @@ class ChatViewModel: ObservableObject {
         
         // Google Gemini
         ModelConfig(provider: .gemini, modelName: "gemini-2.5-flash-preview-04-17", displayName: "Gemini 2.5 Flash"),
-        ModelConfig(provider: .gemini, modelName: "gemini-2.0-flash", displayName: "Gemini 2.0 Flash"),
         ModelConfig(provider: .gemini, modelName: "gemini-2.5-pro-preview-05-06", displayName: "Gemini 2.5 Pro")
     ]
 

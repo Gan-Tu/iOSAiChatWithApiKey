@@ -13,6 +13,8 @@ struct InputAreaView: View {
     let isLoading: Bool
     let onExpand: () -> Void
     
+    @FocusState private var isTextEditorFocused: Bool
+    
     // Determine if the send button should be active
     private var isSendButtonDisabled: Bool {
         inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading
@@ -41,6 +43,7 @@ struct InputAreaView: View {
                         .background(Color.white)
                         .cornerRadius(8)
                         .padding(.horizontal, 2)
+                        .focused($isTextEditorFocused)
                 }
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)

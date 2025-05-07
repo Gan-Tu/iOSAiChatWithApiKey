@@ -20,15 +20,26 @@ struct APIKeyConfigView: View {
         NavigationView {
             Form {
                 Section(header: Text("Enter API Keys")) {
-                    TextField("xAI API Key", text: $xaiKey)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                    TextField("OpenAI API Key", text: $openaiKey)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                    TextField("Gemini API Key", text: $geminiKey)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
+                    VStack(alignment: .leading) {
+                        Text("xAI API Key")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        SecureField("Enter xAI API Key", text: $xaiKey)
+                    }
+
+                    VStack(alignment: .leading) {
+                        Text("OpenAI API Key")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        SecureField("Enter OpenAI API Key", text: $openaiKey)
+                    }
+
+                    VStack(alignment: .leading) {
+                        Text("Gemini API Key")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        SecureField("Enter Gemini API Key", text: $geminiKey)
+                    }
                 }
 
                 Section {
