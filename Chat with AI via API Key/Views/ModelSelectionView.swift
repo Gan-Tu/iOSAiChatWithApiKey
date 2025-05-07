@@ -37,83 +37,98 @@ struct ModelSelectionView: View {
     }
 
     var body: some View {
-        NavigationView {
-            List {
-                // Iterate over sorted providers
-                ForEach(sortedProviders, id: \.self) { provider in
-                    Section(header: Text(provider.name)) {
-                        // Iterate over models sorted within this provider group
-                        ForEach(groupedAndSortedModels[provider] ?? []) { model in
-                            modelRow(for: model)
+            NavigationView {
+                List {
+                    ForEach(sortedProviders, id: \.self) { provider in
+                        Section(header: Text(provider.name)) {
+                            ForEach(groupedAndSortedModels[provider] ?? []) { model in
+                                modelRow(for: model) // Use the extracted modelRow view
+                            }
                         }
-                        // Only allow deletion for custom models.
-                        // .onDelete needs to be on ForEach that directly maps to deletable items.
-                        // This is more complex with sections. A common pattern is to have separate ForEach for custom.
-                        // For simplicity here, we'll allow deletion via a context menu or detail view if needed,
-                        // or the user can manage custom models from a dedicated settings screen.
-                        // The current `deleteCustomModelItems` is geared towards a flat list of custom models.
-                        // Let's adjust deletion to be more targeted if we keep this structure.
                     }
                 }
-            }
-            .navigationTitle("Select Model")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        viewModel.requestAPIKeyConfiguration()
-                        dismiss()
-                    } label: {
-                        Label("API Keys", systemImage: "key.horizontal")
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack {
+                .navigationTitle("Select Model")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
                         Button {
-                            viewModel.showAddCustomModelSheet = true
-                            dismiss() // Dismiss this sheet to allow the new one to present
-                        } label: {
-                            Image(systemName: "plus.circle.fill")
-                        }
-                        Button("Done") {
+                            viewModel.requestAPIKeyConfiguration()
                             dismiss()
+                        } label: {
+                            Label("API Keys", systemImage: "key.horizontal")
+                        }
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        HStack {
+                            Button {
+                                viewModel.showAddCustomModelSheet = true
+                                dismiss()
+                            } label: {
+                                Image(systemName: "plus.circle.fill")
+                            }
+                            Button("Done") {
+                                dismiss()
+                            }
                         }
                     }
                 }
             }
         }
-    }
 
-    @ViewBuilder
-    private func modelRow(for model: ModelConfig) -> some View {
-        Button {
-            viewModel.selectModel(model) // Selects and starts new chat (if different)
-            dismiss()
-        } label: {
-            HStack {
-                VStack(alignment: .leading) {
-                    Text(model.displayName)
-                        .foregroundColor(.primary)
-                    Text("ID: \(model.modelName)") // Provider name is in section header
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                    if model.isCustom {
-                        Text("Custom")
-                            .font(.caption2)
-                            .foregroundColor(.orange)
-                            .padding(.horizontal, 4)
-                            .background(Color.orange.opacity(0.2))
-                            .cornerRadius(4)
+        // Extracted ViewBuilder for the model row
+        @ViewBuilder
+        private func modelRow(for model: ModelConfig) -> some View {
+            Button {
+                viewModel.selectModel(model)
+                dismiss()
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) { // Added spacing
+                        Text(model.displayName)
+                            .foregroundColor(.primary)
+                        Text("ID: \(model.modelName)")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        
+                        // HStack for labels (Custom, Reasoning)
+                        HStack(spacing: 6) {
+                            if model.isCustom {
+                                Text("Custom")
+                                    .font(.caption2)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .foregroundColor(.orange)
+                                    .background(Color.orange.opacity(0.2))
+                                    .cornerRadius(4)
+                            }
+                            
+                            if model.requiresReasoningParameter {
+                                Text("reasoning")
+                                    .font(.caption2)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .foregroundColor(.green)
+                                    .background(Color.green.opacity(0.2))
+                                    .cornerRadius(4)
+                            }
+
+                            // FIX: Display Reasoning Effort Label
+                            if let openAIEffort = model.openAIReasoningEffort {
+                                reasoningLabel(text: "\(openAIEffort)")
+                            } else if let xAIEffort = model.xAIReasoningEffort {
+                                reasoningLabel(text: "\(xAIEffort)")
+                            }
+                        }
+                    }
+                    Spacer()
+                    if model.id == viewModel.selectedModel.id {
+                        Image(systemName: "checkmark")
+                            .foregroundColor(.blue)
                     }
                 }
-                Spacer()
-                if model.id == viewModel.selectedModel.id {
-                    Image(systemName: "checkmark")
-                        .foregroundColor(.blue)
-                }
+                .padding(.vertical, 4) // Add some vertical padding to the button content for better touch target and spacing
             }
-            // Add context menu for deleting custom models
-            .contextMenu {
+            .contextMenu { // Context menu for deleting custom models
                 if model.isCustom {
                     Button(role: .destructive) {
                         viewModel.deleteCustomModel(model: model)
@@ -123,10 +138,24 @@ struct ModelSelectionView: View {
                 }
             }
         }
-    }
 
-    // .onDelete on a ForEach inside sections for mixed content (default/custom) is tricky.
-    // The contextMenu approach on the modelRow is more direct for deleting specific custom models.
-    // If you strictly need swipe-to-delete, you'd have a separate ForEach loop just for custom models
-    // within each provider section, or a separate "Manage Custom Models" screen.
+        // Helper view for the reasoning label for consistent styling
+        @ViewBuilder
+        private func reasoningLabel(text: String) -> some View {
+            Text(text)
+                .font(.caption2)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .foregroundColor(.purple) // Different color for reasoning
+                .background(Color.purple.opacity(0.2))
+                .cornerRadius(4)
+        }
+}
+
+struct ModelSelectionView_Previews: PreviewProvider {
+    static var previews: some View {
+        // Create a sample ViewModel for preview
+        let previewViewModel = ChatViewModel()
+        return ModelSelectionView(viewModel: previewViewModel)
+    }
 }

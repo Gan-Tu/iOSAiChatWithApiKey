@@ -22,12 +22,12 @@ class ChatViewModel: ObservableObject {
     private var defaultModels: [ModelConfig] = [ // Hardcoded default models
         // xAI
         ModelConfig(provider: .xai, modelName: "grok-3-latest", displayName: "Grok 3", priority: 1),
-        ModelConfig(provider: .xai, modelName: "grok-3-mini-latest", displayName: "Grok 3 Mini (medium)", priority: 2, xAIReasoningEffort: "medium"), // Add reasoning parameter
+        ModelConfig(provider: .xai, modelName: "grok-3-mini-latest", displayName: "Grok 3 Mini", priority: 2, xAIReasoningEffort: "medium"), // Add reasoning parameter
         
         // OpenAI
         ModelConfig(provider: .openai, modelName: "gpt-4.1-mini", displayName: "GPT-4.1 Mini", priority: 1),
         ModelConfig(provider: .openai, modelName: "gpt-4.1", displayName: "GPT-4.1", priority: 2),
-        ModelConfig(provider: .openai, modelName: "o4-mini", displayName: "o4 Mini (medium)", priority: 3, openAIReasoningEffort: "medium"), // Add reasoning parameter
+        ModelConfig(provider: .openai, modelName: "o4-mini", displayName: "o4 Mini", priority: 3, openAIReasoningEffort: "medium"), // Add reasoning parameter
         
         // Google Gemini
         ModelConfig(provider: .gemini, modelName: "gemini-2.5-flash-preview-04-17", displayName: "Gemini 2.5 Flash", priority: 1),
