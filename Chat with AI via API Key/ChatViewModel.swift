@@ -21,17 +21,18 @@ class ChatViewModel: ObservableObject {
     @Published var allAvailableModels: [ModelConfig] = [] // Combined list
     private var defaultModels: [ModelConfig] = [ // Hardcoded default models
         // xAI
-        ModelConfig(provider: .xai, modelName: "grok-3-latest", displayName: "Grok 3", priority: 1),
-        ModelConfig(provider: .xai, modelName: "grok-3-mini-latest", displayName: "Grok 3 Mini", priority: 2, xAIReasoningEffort: "medium"), // Add reasoning parameter
+        ModelConfig(provider: .xai, modelName: "grok-4-1-fast-reasoning", displayName: "Grok 4.1 Fast Reasoning", priority: 1),
+        ModelConfig(provider: .xai, modelName: "grok-4-1-fast-non-reasoning", displayName: "Grok 4.1 Fast Non-Reasoning", priority: 2),
+        ModelConfig(provider: .xai, modelName: "grok-code-fast-1", displayName: "Grok Code Fast 1", priority: 3),
         
         // OpenAI
-        ModelConfig(provider: .openai, modelName: "gpt-4.1-mini", displayName: "GPT-4.1 Mini", priority: 1),
-        ModelConfig(provider: .openai, modelName: "gpt-4.1", displayName: "GPT-4.1", priority: 2),
-        ModelConfig(provider: .openai, modelName: "o4-mini", displayName: "o4 Mini", priority: 3, openAIReasoningEffort: "medium"), // Add reasoning parameter
+        ModelConfig(provider: .openai, modelName: "gpt-5.2", displayName: "GPT-5.2", priority: 1),
+        ModelConfig(provider: .openai, modelName: "gpt-5.2-codex", displayName: "GPT-5.2 Codex", priority: 2),
+        ModelConfig(provider: .openai, modelName: "gpt-5-mini", displayName: "GPT-5 Mini", priority: 3),
         
         // Google Gemini
-        ModelConfig(provider: .gemini, modelName: "gemini-2.5-flash-preview-04-17", displayName: "Gemini 2.5 Flash", priority: 1),
-        ModelConfig(provider: .gemini, modelName: "gemini-2.5-pro-preview-05-06", displayName: "Gemini 2.5 Pro", priority: 2)
+        ModelConfig(provider: .gemini, modelName: "gemini-3-flash-preview", displayName: "Gemini 3 Flash", priority: 1),
+        ModelConfig(provider: .gemini, modelName: "gemini-3.1-pro-preview", displayName: "Gemini 3.1 Pro", priority: 2)
     ]
     @Published var customModels: [ModelConfig] = [] {
         didSet {
@@ -58,7 +59,7 @@ class ChatViewModel: ObservableObject {
         } else {
             // This case should ideally not happen if defaultModels is always populated.
             // Provide an absolute fallback if defaultModels could somehow be empty.
-            self.selectedModel = ModelConfig(provider: .openai, modelName: "gpt-4.1", displayName: "Fallback Default GPT-4.1")
+            self.selectedModel = ModelConfig(provider: .openai, modelName: "gpt-5.2", displayName: "Fallback Default GPT-5.2")
             // print("CRITICAL WARNING: defaultModels array was empty during init. Using absolute fallback.")
         }
 
