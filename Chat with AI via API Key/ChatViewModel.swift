@@ -26,9 +26,10 @@ class ChatViewModel: ObservableObject {
         ModelConfig(provider: .xai, modelName: "grok-code-fast-1", displayName: "Grok Code Fast 1", priority: 3),
         
         // OpenAI
-        ModelConfig(provider: .openai, modelName: "gpt-5.2", displayName: "GPT-5.2", priority: 1),
-        ModelConfig(provider: .openai, modelName: "gpt-5.2-codex", displayName: "GPT-5.2 Codex", priority: 2),
-        ModelConfig(provider: .openai, modelName: "gpt-5-mini", displayName: "GPT-5 Mini", priority: 3),
+        ModelConfig(provider: .openai, modelName: "gpt-5.4", displayName: "GPT-5.4", priority: 1),
+        ModelConfig(provider: .openai, modelName: "gpt-5.3-codex", displayName: "GPT-5.3 Codex", priority: 2),
+        ModelConfig(provider: .openai, modelName: "gpt-5.2", displayName: "GPT-5.2", priority: 3),
+        ModelConfig(provider: .openai, modelName: "gpt-5-mini", displayName: "GPT-5 Mini", priority: 4),
         
         // Google Gemini
         ModelConfig(provider: .gemini, modelName: "gemini-3-flash-preview", displayName: "Gemini 3 Flash", priority: 1),
@@ -59,7 +60,7 @@ class ChatViewModel: ObservableObject {
         } else {
             // This case should ideally not happen if defaultModels is always populated.
             // Provide an absolute fallback if defaultModels could somehow be empty.
-            self.selectedModel = ModelConfig(provider: .openai, modelName: "gpt-5.2", displayName: "Fallback Default GPT-5.2")
+            self.selectedModel = ModelConfig(provider: .openai, modelName: "gpt-5.4", displayName: "Fallback Default GPT-5.4")
             // print("CRITICAL WARNING: defaultModels array was empty during init. Using absolute fallback.")
         }
 
