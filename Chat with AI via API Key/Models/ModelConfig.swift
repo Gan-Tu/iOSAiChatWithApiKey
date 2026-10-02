@@ -34,6 +34,17 @@ struct ModelConfig: Identifiable, Codable, Equatable, Hashable { // Add Codable,
         self.isCustom = isCustom
     }
 
+    static let builtInModels: [ModelConfig] = [
+        ModelConfig(provider: .openai, modelName: "gpt-6.1-sol", displayName: "GPT-6.1 Sol", priority: 1, openAIReasoningEffort: "medium"),
+        ModelConfig(provider: .openai, modelName: "gpt-6-astra", displayName: "GPT-6 Astra", priority: 2, openAIReasoningEffort: "medium"),
+        ModelConfig(provider: .openai, modelName: "gpt-6-luna", displayName: "GPT-6 Luna", priority: 3, openAIReasoningEffort: "none"),
+        ModelConfig(provider: .xai, modelName: "grok-4.7", displayName: "Grok 4.7", priority: 1, xAIReasoningEffort: "medium"),
+        ModelConfig(provider: .xai, modelName: "grok-4.3", displayName: "Grok 4.3", priority: 2, xAIReasoningEffort: "none"),
+        ModelConfig(provider: .gemini, modelName: "gemini-3.8-flash", displayName: "Gemini 3.8 Flash", priority: 1),
+        ModelConfig(provider: .gemini, modelName: "gemini-3.5-flash-lite", displayName: "Gemini 3.5 Flash-Lite", priority: 2),
+        ModelConfig(provider: .gemini, modelName: "gemini-3.1-pro-preview", displayName: "Gemini 3.1 Pro (Preview)", priority: 3)
+    ]
+
     // For Equatable and Hashable, we might only care about a subset of properties
     // if we consider two models the same if their core API identifiers match.
     // For now, default synthesis for Equatable and Hashable based on all properties is fine.

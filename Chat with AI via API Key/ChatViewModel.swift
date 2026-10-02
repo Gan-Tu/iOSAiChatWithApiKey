@@ -8,7 +8,6 @@ import SwiftUI
 import Combine
 
 class ChatViewModel: ObservableObject {
-    private let selectedModelKey = "SelectedModelKey"
     @Published var messages: [Message] = []
     @Published var inputText: String = ""
     @Published var selectedModel: ModelConfig
@@ -19,20 +18,7 @@ class ChatViewModel: ObservableObject {
     @Published var showAddCustomModelSheet = false // For presenting the add/edit view
     
     @Published var allAvailableModels: [ModelConfig] = [] // Combined list
-    private var defaultModels: [ModelConfig] = [ // Hardcoded default models
-        // OpenAI
-        ModelConfig(provider: .openai, modelName: "gpt-5.6-sol", displayName: "GPT-5.6 Sol", priority: 1),
-        ModelConfig(provider: .openai, modelName: "gpt-5.6-terra", displayName: "GPT-5.6 Terra", priority: 2),
-        ModelConfig(provider: .openai, modelName: "gpt-5.6-luna", displayName: "GPT-5.6 Luna", priority: 3),
-        ModelConfig(provider: .openai, modelName: "gpt-5.5", displayName: "GPT-5.5", priority: 4),
-
-        // xAI
-        ModelConfig(provider: .xai, modelName: "grok-4.5", displayName: "Grok 4.5", priority: 1),
-
-        // Google Gemini
-        ModelConfig(provider: .gemini, modelName: "gemini-3.5-flash", displayName: "Gemini 3.5 Flash", priority: 1),
-        ModelConfig(provider: .gemini, modelName: "gemini-3.1-pro-preview", displayName: "Gemini 3.1 Pro Preview", priority: 2)
-    ]
+    private let defaultModels = ModelConfig.builtInModels
     @Published var customModels: [ModelConfig] = [] {
         didSet {
             saveCustomModels()
@@ -45,57 +31,42 @@ class ChatViewModel: ObservableObject {
     // UserDefaults keys
     private let lastSelectedModelProviderKey = "lastSelectedModelProviderKey"
     private let lastSelectedModelNameKey = "lastSelectedModelNameKey"
+    private let modelCatalogRevisionKey = "modelCatalogRevision"
+    private let modelCatalogRevision = "2026-10-gpt6"
     private let customModelsKey = "customModelsKey_v2" // Use a new key if format changes
 
     private var currentStreamingTask: URLSessionDataTask?
     private var currentAssistantMessageId: UUID? // To track the loading/streaming assistant message
 
     init() {
-        // 1. Initialize selectedModel with a guaranteed default value first.
-        //    Make sure defaultModels is not empty, or handle that case.
-        if let firstDefault = defaultModels.first {
-            self.selectedModel = firstDefault
-        } else {
-            // This case should ideally not happen if defaultModels is always populated.
-            // Provide an absolute fallback if defaultModels could somehow be empty.
-            self.selectedModel = ModelConfig(provider: .openai, modelName: "gpt-5.6-sol", displayName: "Fallback Default GPT-5.6 Sol")
-            // print("CRITICAL WARNING: defaultModels array was empty during init. Using absolute fallback.")
-        }
+        self.selectedModel = defaultModels[0]
+        loadCustomModels()
+        updateAllAvailableModels()
 
-        // 2. Now that all stored properties are initialized, we can call instance methods.
-        loadCustomModels()          // Loads into self.customModels, triggers didSet
-        updateAllAvailableModels()  // Populates self.allAvailableModels
-
-        // 3. Attempt to load and set the *actual* last selected model from UserDefaults.
-        //    This will override the preliminary default if a saved model is found.
-        if let lastModelProviderRaw = UserDefaults.standard.string(forKey: lastSelectedModelProviderKey),
+        // Reset older builds to the new default once, regardless of the saved selection.
+        if UserDefaults.standard.string(forKey: modelCatalogRevisionKey) == modelCatalogRevision,
+           let lastModelProviderRaw = UserDefaults.standard.string(forKey: lastSelectedModelProviderKey),
            let lastModelName = UserDefaults.standard.string(forKey: lastSelectedModelNameKey),
            let lastProvider = Provider(rawValue: lastModelProviderRaw),
-           let foundModelInAll = allAvailableModels.first(where: { $0.provider == lastProvider && $0.modelName == lastModelName }) {
-            self.selectedModel = foundModelInAll // Override with the loaded model
-            // print("DEBUG: Loaded last selected model from UserDefaults: \(foundModelInAll.displayName)")
-        } else {
-            // If no saved model, or saved model is no longer in allAvailableModels,
-            // selectedModel remains the preliminary default set in step 1.
-            // We might want to ensure it's the first of the *combined* list if custom models were loaded.
-            if let firstOverall = allAvailableModels.first {
-                 self.selectedModel = firstOverall
-            }
-            // print("DEBUG: No valid last selected model found in UserDefaults or it's no longer available. Using first available model: \(self.selectedModel.displayName)")
+           let savedModel = allAvailableModels.first(where: { $0.provider == lastProvider && $0.modelName == lastModelName }) {
+            self.selectedModel = savedModel
         }
-
-        // 4. Finally, check API keys for the now definitively set selectedModel.
+        saveSelectedModelToUserDefaults(selectedModel)
+        UserDefaults.standard.set(modelCatalogRevision, forKey: modelCatalogRevisionKey)
         checkAPIKeys()
     }
     
     private func updateAllAvailableModels() {
         // Combine default and custom models.
-        // Sort them for consistent display order.
+        // Match the picker order and keep the recommended defaults first.
         allAvailableModels = (defaultModels + customModels).sorted {
-            if $0.provider.name == $1.provider.name {
-                return $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+            if $0.provider.priority != $1.provider.priority {
+                return $0.provider.priority < $1.provider.priority
             }
-            return $0.provider.name.localizedCaseInsensitiveCompare($1.provider.name) == .orderedAscending
+            if $0.priority != $1.priority {
+                return $0.priority < $1.priority
+            }
+            return $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
         }
     }
 

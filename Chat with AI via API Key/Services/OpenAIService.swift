@@ -77,16 +77,11 @@ class OpenAIService: NSObject, AIProviderService, URLSessionDataDelegate {
         ]
         
         if let effort = model.openAIReasoningEffort {
-             // Note: Confirm if /v1/responses supports this.
-             // requestBodyDict["reasoning"] = ["effort": effort]
-             print("Warning: 'reasoning.effort' parameter usage with /v1/responses needs API doc confirmation.")
+            requestBodyDict["reasoning"] = ["effort": effort]
         }
 
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: requestBodyDict, options: [])
-            if let bodyStr = String(data: request.httpBody!, encoding: .utf8) {
-                print("OpenAIService Request Body: \(bodyStr)")
-            }
         } catch {
             onComplete(.failure(.streamingError("Failed to serialize request body: \(error.localizedDescription)")))
             return nil

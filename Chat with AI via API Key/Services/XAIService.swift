@@ -78,7 +78,7 @@ class XAIService: NSObject, AIProviderService, URLSessionDataDelegate {
             "temperature": 0.0 // Example, can be configurable
         ]
 
-        // FIX 6: Add reasoning parameter for xAI mini if specified
+        // Grok supports explicit reasoning effort, including none for Grok 4.3.
         if let effort = model.xAIReasoningEffort {
             requestBody["reasoning_effort"] = effort
         }
